@@ -69,5 +69,75 @@ jobs:
           while IFS="=" read -r path name; do
             packages["$path"]="$name"
           done < <(echo "$PACKAGE_MAP" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
+
+           # 获取提交范围
+          commits=$(git rev-list ${{ github.event.before }}..${{ github.sha }})
+          echo "Processing commits: ${commits[@]}"
           
-          # ...后续步骤保持不变...
+          # 提取PR号（如果是PR合并）
+          merge_message=$(git log -1 --pretty=%B ${{ github.sha }})
+          if [[ "$merge_message" =~ "Merge pull request" ]]; then
+            PR_NUM=$(echo "$merge_message" | grep -oP '#\K\d+')
+          fi
+          
+          for commit in $commits; do
+            # 获取修改的文件列表
+            files=$(git diff-tree --no-commit-id --name-only -r $commit)
+            
+            # 识别受影响的package
+            declare -A affected
+            for file in $files; do
+              for path in "${!packages[@]}"; do
+                # 特殊处理根路径
+                normalized_path="${path%/}"
+                if [[ "$normalized_path" == "." ]]; then
+                  pattern="^[^/]+$"
+                else
+                  pattern="^$normalized_path/"
+                fi
+                
+                if [[ "$file" =~ $pattern ]] || [[ "$file" == "$normalized_path" ]]; then
+                  pkg_name="${packages[$path]}"
+                  branch="debian/jazzy/noble/$pkg_name"
+                  affected["$branch"]+="$file "
+                  break
+                fi
+              done
+            done
+            
+            # 同步到各debian分支
+            for branch in "${!affected[@]}"; do
+              echo "Syncing to $branch for commit $commit"
+              
+              # 使用git worktree避免分支切换
+              tmp_dir=$(mktemp -d)
+              git worktree add "$tmp_dir" "$branch" || { echo "Worktree creation failed"; exit 1; }
+              
+              # 检出目标文件
+              cd "$tmp_dir"
+              for file in ${affected[$branch]}; do
+                # 确保目标目录存在
+                target_dir=$(dirname "$file")
+                mkdir -p "$target_dir"
+                git checkout $commit -- "$file" || echo "Checkout failed for $file"
+              done
+              
+              # 提交变更
+              original_msg=$(git log -1 --pretty=%B $commit)
+              commit_msg="$original_msg"
+              [[ -n "$PR_NUM" ]] && commit_msg+=" | PR: #$PR_NUM"
+              commit_msg+=" | Source: $commit"
+              
+              git add .
+              if ! git diff-index --quiet HEAD --; then
+                git commit -m "$commit_msg" || echo "Commit failed"
+                git push origin "$branch" || echo "Push failed"
+              else
+                echo "No changes to commit for $branch"
+              fi
+              
+              # 清理工作区
+              cd -
+              git worktree remove --force "$tmp_dir"
+            done
+          done
