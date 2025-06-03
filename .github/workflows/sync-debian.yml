@@ -1,0 +1,104 @@
+name: Sync Debian Branches
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  sync-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整提交历史
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup ROS environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxml2-utils  # 安装xmllint
+
+      - name: Find ROS packages
+        id: find-packages
+        run: |
+          declare -A packages
+          # 单节点仓库检测
+          if [[ -f "package.xml" ]]; then
+            name=$(xmllint --xpath 'string(/package/name)' package.xml)
+            packages["."]="$name"
+          else
+            # 多节点仓库递归查找
+            while IFS= read -r dir; do
+              name=$(xmllint --xpath 'string(/package/name)' "$dir/package.xml")
+              packages["$dir"]="$name"
+            done < <(find . -type d -exec test -f '{}/package.xml' \; -print -prune)
+          fi
+          
+          # 生成包映射JSON
+          echo "PACKAGE_MAP=$(jq -n --argjson packages "$(declare -p packages | jq -R .)" '$packages')" >> $GITHUB_ENV
+          echo "Found ${#packages[@]} ROS packages"
+
+      - name: Process commits
+        run: |
+          # 解析包映射
+          declare -A packages
+          eval "$(echo "$PACKAGE_MAP" | jq -r 'to_entries[] | "packages[\(.key)]=\(.value)"')"
+          
+          # 获取本次push的所有提交
+          commits=$(git rev-list ${{ github.event.before }}..${{ github.sha }})
+          echo "Processing ${#commits} commits"
+          
+          # 提取PR号（如果是PR合并）
+          if [[ "$(git log -1 --pretty=%B)" =~ "Merge pull request" ]]; then
+            PR_NUM=$(git log -1 --pretty=%B | grep -oP '#\K\d+')
+          fi
+          
+          for commit in $commits; do
+            # 获取修改的文件列表
+            files=$(git diff-tree --no-commit-id --name-only -r $commit)
+            
+            # 识别受影响的package
+            declare -A affected
+            for file in $files; do
+              for path in "${!packages[@]}"; do
+                if [[ "$file" == "$path"/* || "$file" == "$path" ]]; then
+                  pkg_name="${packages[$path]}"
+                  branch="debian/jazzy/noble/$pkg_name"
+                  affected["$branch"]+="$file "  # 记录分支和文件
+                  break
+                fi
+              done
+            done
+            
+            # 同步到各debian分支
+            for branch in "${!affected[@]}"; do
+              echo "Syncing to $branch for commit $commit"
+              
+              # 创建临时工作区
+              tmp_dir=$(mktemp -d)
+              git worktree add "$tmp_dir" "$branch"
+              
+              # 检出目标文件
+              cd "$tmp_dir"
+              for file in ${affected[$branch]}; do
+                git checkout $commit -- "$file"
+              done
+              
+              # 提交变更
+              original_msg=$(git log -1 --pretty=%B $commit)
+              commit_msg="$original_msg"
+              [[ -n "$PR_NUM" ]] && commit_msg+=" | PR: #$PR_NUM"
+              commit_msg+=" | Source: $commit"
+              
+              git add .
+              git commit -m "$commit_msg" || echo "No changes to commit"
+              
+              # 推送更新
+              git push origin "$branch"
+              
+              # 清理工作区
+              cd -
+              git worktree remove "$tmp_dir"
+            done
+          done
