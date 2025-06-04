@@ -130,6 +130,7 @@ def main():
         commits = list(repo.iter_commits(f"{before_sha}..{after_sha}"))
     
     print(f"🔍 处理 {len(commits)} 个提交")
+    print(f"commits: {commits}")
 
 
     # 3. 处理每个提交
@@ -137,6 +138,7 @@ def main():
         try:
             # 获取变更文件列表
             changed_files = [item.a_path for item in commit.diff(commit.parents[0])]
+            print(f"chagned files: {changed_files}")
             affected_branches = {}
             
             # 4. 匹配受影响的包
