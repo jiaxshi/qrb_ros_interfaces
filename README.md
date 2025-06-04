@@ -60,8 +60,6 @@ We would love to have you as a part of the QRB ROS community. Whether you are he
 - Bug report: If you see an error message or encounter failures, please create a [bug report](../../issues)
 - Feature Request: If you have an idea or if there is a capability that is missing and would make development easier and more robust, please submit a [feature request](../../issues)
 
-<Update link with template>
-
 
 ## Authors
 
