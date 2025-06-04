@@ -123,6 +123,7 @@ def main():
     # 2. 获取提交范围
     before_sha = os.getenv("GITHUB_EVENT_BEFORE")
     after_sha = os.getenv("GITHUB_SHA")
+    print(f"before_sha:{before_sha}, after_sha:{after_sha}")
 
     if not before_sha or before_sha == "0"*40:  # 初始提交情况
         commits = [repo.commit(after_sha)]
