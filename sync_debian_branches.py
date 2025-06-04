@@ -15,12 +15,13 @@ def find_ros_packages():
         packages["."] = name
     else:
         # 多包递归查找
-        for root, _, files in os.walk("."):
+        for root, dirs, files in os.walk("."):
             if "package.xml" in files:
                 try:
                     tree = ET.parse(Path(root) / "package.xml")
                     name = tree.findtext("name")
                     packages[root] = name
+                    dirs.clear()
                 except ET.ParseError:
                     print(f"警告: {root}/package.xml 解析失败，跳过")
     return packages
@@ -62,7 +63,9 @@ def main():
     repo = Repo(".")
     base_commit = os.getenv("GITHUB_BASE_REF", "HEAD~1")
     head_commit = os.getenv("GITHUB_SHA", "HEAD")
-    
+
+    print(f"base_commit:${base_commit}, head_commit:{head_commit}")
+ 
     # 1. 获取包映射
     packages = find_ros_packages()
     print(f"📦 发现 {len(packages)} 个ROS包: {json.dumps(packages, indent=2)}")
