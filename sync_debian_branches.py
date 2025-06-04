@@ -145,6 +145,7 @@ def main():
             # 4. 匹配受影响的包
             for file in changed_files:
                 for path, pkg_name in packages.items():
+                    print(f"path:{path}, pkg_name:{pkg_name}, file:{file}")
                     # 精确路径匹配逻辑
                     if path == ".":
                         # 根目录包匹配无路径文件
