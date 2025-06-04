@@ -145,17 +145,17 @@ def main():
             # 4. 匹配受影响的包
             for file in changed_files:
                 for path, pkg_name in packages.items():
-                    print(f"path:{path}, pkg_name:{pkg_name}, file:{file}")
+                    normalized_path = path[2:] if path.startswith("./") else path
+                    print(f"normalized_path:{normalized_path}, pkg_name:{pkg_name}, file:{file}")
                     # 精确路径匹配逻辑
-                    if path == ".":
+                    if normalized_path == ".":
                         # 根目录包匹配无路径文件
                         if "/" not in file or file.startswith("./"):
                             branch = f"debian/jazzy/noble/{pkg_name}"
                             affected_branches.setdefault(branch, set()).add(file)
                     else:
                         # 子目录包匹配
-                        normalized_path = path + "/"
-                        if file.startswith(normalized_path) or file == path:
+                        if file.startswith(normalized_path + "/") or file == normalized_path:
                             branch = f"debian/jazzy/noble/{pkg_name}"
                             affected_branches.setdefault(branch, set()).add(file)
             
