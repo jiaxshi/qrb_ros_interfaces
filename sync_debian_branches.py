@@ -7,15 +7,17 @@ import xml.etree.ElementTree as ET
 from git import Repo, GitCommandError
 from pathlib import Path
 
-def find_ros_packages():
-    """递归查找所有ROS包并返回路径-包名映射"""
+def find_ros_packages(path = "."):
+    """Find ROS packages and return dict{path:name}"""
     packages = {}
+    os.chdir(path)
+    # Single package
     if Path("package.xml").exists():
         tree = ET.parse("package.xml")
         name = tree.findtext("name")
         packages["."] = name
-    else:
-        for root, dirs, files in os.walk("."):
+    else:   # Multiple packages
+        for root, dirs, files in os.walk(path):
             if "package.xml" in files:
                 try:
                     tree = ET.parse(Path(root) / "package.xml")
@@ -23,7 +25,7 @@ def find_ros_packages():
                     packages[root] = name
                     dirs.clear()
                 except ET.ParseError:
-                    print(f"警告: {root}/package.xml 解析失败，跳过")
+                    print(f"Warning: {root}/package.xml parse failed!")
     return packages
 
 def create_pull_request(target_branch, source_branch, commit, pr_num=None):
@@ -44,10 +46,10 @@ def create_pull_request(target_branch, source_branch, commit, pr_num=None):
             text=True,
             check=True
         )
-        print(f"✅ PR创建成功: {result.stdout.strip()}")
+        print(f"✅ PR created successfully: {result.stdout.strip()}")
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"❌ PR创建失败: {e.stderr}")
+        print(f"❌ PR created failed: {e.stderr}")
         return None
 
 def sync_commit_to_branch(repo, base_branch, target_branch, commit, files, mode = "pr"):
@@ -55,32 +57,26 @@ def sync_commit_to_branch(repo, base_branch, target_branch, commit, files, mode 
     worktree_path = Path(worktree_dir)
     
     try:
-        # 创建并检出工作树
         repo.git.worktree("add", worktree_dir, target_branch)
         worktree_repo = Repo(worktree_path)
         
-        # 检出目标文件
         for file in files:
             src_path = Path(file)
             dst_path = worktree_path / file
             
-            # 确保目录存在
             dst_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # 从源提交复制文件
             repo.git.checkout(commit.hexsha, "--", file)
             if src_path.exists():
                 with open(src_path, "rb") as f_src, open(dst_path, "wb") as f_dst:
                     f_dst.write(f_src.read())
         
-        # 提交变更
         worktree_repo.git.add(A=True)
         if worktree_repo.is_dirty():
-            # 保留原始提交信息
+
             original_msg = commit.message.strip()
             commit_msg = f"{original_msg}\nSource: {commit.hexsha}"
             
-            # 添加PR引用（如果存在）
             if "Merge pull request" in original_msg:
                 pr_num = original_msg.split("#")[1].split()[0]
                 commit_msg += f" | PR: #{pr_num}"
@@ -89,21 +85,20 @@ def sync_commit_to_branch(repo, base_branch, target_branch, commit, files, mode 
 
             if mode == "direct":
                 worktree_repo.git.push("origin", target_branch)
-                print(f"✅ 已同步提交 {commit.hexsha[:7]} 到 {target_branch}")
+                print(f"✅ Push {commit.hexsha[:7]} to {target_branch}")
             else:
                 temp_branch = f"sync-{target_branch.replace('/', '-')}-{commit.hexsha[:7]}"
                 worktree_repo.git.checkout("-b", temp_branch)
                 worktree_repo.git.push("origin", temp_branch, force=True)
                 pr_url = create_pull_request(target_branch, temp_branch, commit, pr_num)
                 if pr_url:
-                    print(f"✅ PR已创建: {pr_url}")
+                    print(f"✅ PR created: {pr_url}")
         else:
-            print(f"⏭️ {target_branch} 无变更需提交")
+            print(f"⏭️ {target_branch} nothing to commit")
     
     except GitCommandError as e:
-        print(f"❌ 同步失败: {str(e)}")
+        print(f"❌ Sync failed: {str(e)}")
     finally:
-        # 清理工作树
         if worktree_path.exists():
             repo.git.worktree("remove", worktree_dir, "--force")
 
@@ -121,7 +116,7 @@ def main():
     repo = Repo(args.path)
  
     # 1. Get packages
-    packages = find_ros_packages()
+    packages = find_ros_packages(args.path)
     print(f"📦 Find {len(packages)} ROS pakages: {json.dumps(packages, indent=2)}")
 
     # 2. Get commits
@@ -164,8 +159,8 @@ def main():
                 print(f"🔄 Sync {branch}: {len(files)} files")
                 sync_commit_to_branch(repo, "main", branch, commit, files, mode = args.mode)
         
-        except IndexError:  # 初始提交无父提交
-            print(f"⚠️ 初始提交 {commit.hexsha} 跳过文件比对")
+        except IndexError:
+            print(f"⚠️ Initial commit {commit.hexsha}. Skip file comparison")
 
 if __name__ == "__main__":
     main()
