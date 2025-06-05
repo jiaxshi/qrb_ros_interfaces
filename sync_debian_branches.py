@@ -55,6 +55,7 @@ def create_pull_request(target_branch, source_branch, commit, pr_num=None):
 def sync_commit_to_branch(repo, base_branch, target_branch, commit, files, mode = "pr"):
     worktree_dir = f"worktree_{target_branch.replace('/', '_')}"
     worktree_path = Path(worktree_dir)
+    pr_num = None
     
     try:
         repo.git.worktree("add", worktree_dir, target_branch)
