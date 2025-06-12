@@ -21,6 +21,7 @@ def clear_except(path, keep=[".git", "debian"]):
     for item in Path(path).iterdir():
         if item.name not in keep:
             shutil.rmtree(item) if item.is_dir() else item.unlink()
+            print(f"Remove {item}")
 
 def copy_package(src, dst):
     for root, _, files in os.walk(src):
@@ -29,6 +30,7 @@ def copy_package(src, dst):
             d = Path(dst) / Path(root).relative_to(src) / f
             d.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(s, d)
+            print(f"Copy {s} to {d}")
 
 def create_pr(base, head, msg):
     try:
@@ -43,6 +45,9 @@ def sync(repo, base_branch, pkg_path, pkg_name, mode):
     worktree = f"worktree_{pkg_name}"
     try:
         repo.git.worktree("add", worktree, target_branch)
+        if not (Path(worktree) / "debian").exists():
+            print(f"::warning 'debian' directory missing in branch {target_branch}.")
+
         clear_except(worktree)
         repo.git.checkout(base_branch)
         copy_package(pkg_path, worktree)
