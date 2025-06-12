@@ -48,12 +48,14 @@ def sync(repo, base_branch, pkg_path, pkg_name, mode):
         repo.git.worktree("add", worktree, target_branch)
         if not (Path(worktree) / "debian").exists():
             print(f"::warning file=sync_debian_branches.py,line=48,title=Missing debian directory::❗ 'debian' directory missing in branch {target_branch}.")
-            sys.stderr.write(f"::error file=sync_debian_branches.py,line=48,title=Missing debian directory::❗ 'debian' directory missing in branch {target_branch}.\n")
 
+        print("::group::Start file operation.")
 
         clear_except(worktree)
         repo.git.checkout(base_branch)
         copy_package(pkg_path, worktree)
+
+        print("::endgroup::")
 
         wrepo = Repo(worktree)
         wrepo.git.add(A=True)
