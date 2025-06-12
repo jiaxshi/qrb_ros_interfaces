@@ -10,6 +10,6 @@ permissions:
 
 jobs:
   commitlint:
-    uses: qualcomm-qrb-ros/.github/.github/workflows/sync-debian.yml@sync_debian_branch
+    uses: ./.github/workflows/sync-debian-ori.yml
     secrets:
       TOKEN: ${{ secrets.GITHUB_TOKEN }}
