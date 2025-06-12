@@ -56,7 +56,7 @@ def sync(repo, base_branch, pkg_path, pkg_name, mode):
         wrepo.git.add(A=True)
         if wrepo.is_dirty():
             commit_hash = repo.head.commit.hexsha
-            msg = f"sync from {base_branch}: for {pkg_name}\n Source commit: {commit_hash}"
+            msg = f"sync from {base_branch}: for {pkg_name}\nSource commit: {commit_hash}"
             wrepo.index.commit(msg)
             if mode == "direct":
                 wrepo.git.push("origin", target_branch)
@@ -65,6 +65,7 @@ def sync(repo, base_branch, pkg_path, pkg_name, mode):
                 wrepo.git.checkout("-b", temp)
                 wrepo.git.push("origin", temp, force=True)
                 create_pr(target_branch, temp, msg)
+            print(f"🚩 {pkg_name} updated!")
         else:
             print(f"⏭️ No changes for {pkg_name}")
     finally:

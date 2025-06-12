@@ -9,7 +9,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  commitlint:
+  sync:
     uses: ./.github/workflows/sync-debian-ori.yml
     secrets:
       TOKEN: ${{ secrets.GITHUB_TOKEN }}
