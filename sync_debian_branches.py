@@ -2,6 +2,7 @@
 import os, shutil, subprocess, argparse, xml.etree.ElementTree as ET
 from pathlib import Path
 from git import Repo, GitCommandError
+import sys
 
 def find_ros_packages(base_path):
     """Find ROS packages and return dict{path:name}"""
@@ -46,7 +47,9 @@ def sync(repo, base_branch, pkg_path, pkg_name, mode):
     try:
         repo.git.worktree("add", worktree, target_branch)
         if not (Path(worktree) / "debian").exists():
-            print(f"::warning 'debian' directory missing in branch {target_branch}.")
+            print(f"::warning file=sync_debian_branches.py,line=48,title=Missing debian directory::❗ 'debian' directory missing in branch {target_branch}.")
+            sys.stderr.write(f"::error file=sync_debian_branches.py,line=48,title=Missing debian directory::❗ 'debian' directory missing in branch {target_branch}.\n")
+
 
         clear_except(worktree)
         repo.git.checkout(base_branch)
@@ -68,6 +71,8 @@ def sync(repo, base_branch, pkg_path, pkg_name, mode):
             print(f"🚩 {pkg_name} updated!")
         else:
             print(f"⏭️ No changes for {pkg_name}")
+    except GitCommandError as e:
+        print(f"❌ Sync failed: {str(e)}")
     finally:
         repo.git.worktree("remove", worktree, "--force")
 
