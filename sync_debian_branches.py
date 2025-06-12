@@ -69,9 +69,10 @@ def sync_commit_to_branch(repo, base_branch, target_branch, commit, files, packa
 
             # Remove path prefix
             for pkg_path in packages:
-                print(f"pkg path: {pkg_path}, file: {file}")
-                if file.startswith(pkg_path + "/") or file == pkg_path:
-                    relative_path = file[len(pkg_path):].lstrip("/")
+                path = pkg_path[2:] if pkg_path.startswith("./") else pkg_path
+                print(f"pkg path: {pkg_path}, path:{path}, file: {file}")
+                if file.startswith(path + "/") or file == path:
+                    relative_path = file[len(path):].lstrip("/")
                     dst_path = worktree_path / relative_path
                     break
             else:
@@ -153,7 +154,11 @@ def main():
     if not before_sha or before_sha == "0"*40:  # Initial commit
         commits = [repo.commit(after_sha)]
     else:
-        commits = list(repo.iter_commits(f"{before_sha}..{after_sha}"))
+        try:
+            commits = list(repo.iter_commits(f"{before_sha}..{after_sha}"))
+        except GitCommandError:
+            print(f"⚠️ before_sha: {before_sha} not found. Using single commit {after_sha}.")
+            commits = [repo.commit(after_sha)]
     
     print(f"🔍 Handle {len(commits)} commits.")
     print(f"🔍 Commits: {commits}")
